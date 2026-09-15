@@ -311,10 +311,23 @@ class SimVarAccessor:
         index: int | None = None,
         timeout: float = DEFAULT_TIMEOUT,
         raw_name: bool = False,
+        object_id: int = SIMCONNECT_OBJECT_ID_USER,
     ):
         """Read one SimVar. Returns float, or str for string variables.
 
         Raises SimVarNotFoundError, UnitMismatchError, SimVarTimeoutError.
+
+        `object_id` selects WHICH object the variable is read from, and
+        defaults to the user aircraft so every existing caller is unchanged.
+        SimVars are not properties of the user's aircraft -- they are read on
+        an object, and RequestDataOnSimObject has always taken an id -- this
+        was simply pinned to the user by a literal. An id from
+        create_ai_object reads that spawned object instead.
+
+        The definition cache is deliberately NOT keyed by object_id: a data
+        definition describes a variable layout, not an object, and the same
+        definition is valid for every object. Keying it per object would
+        allocate a fresh definition per spawned probe and leak them.
 
         `raw_name=True` reads a verbatim datum name such as 'L:SOME_VAR'.
         The SimVar catalog knows nothing about those, so neither
@@ -360,7 +373,7 @@ class SimVarAccessor:
                     self._sm.hSimConnect,
                     req_id,
                     def_id,
-                    SIMCONNECT_OBJECT_ID_USER,
+                    object_id,
                     SIMCONNECT_PERIOD.SIMCONNECT_PERIOD_ONCE,
                     0,
                     0,
@@ -388,8 +401,12 @@ class SimVarAccessor:
         self,
         requests: list[tuple[str, str | None, int | None]],
         per_item_timeout: float = DEFAULT_TIMEOUT,
+        object_id: int = SIMCONNECT_OBJECT_ID_USER,
     ) -> dict[str, dict]:
         """Read several SimVars, isolating failures.
+
+        `object_id` is passed through to read() unchanged and defaults to the
+        user aircraft, so existing callers are unaffected.
 
         Keys are `NAME` or `NAME:index`, so indexed variables stay distinct.
         A failure on one variable never aborts the batch.
@@ -458,7 +475,8 @@ class SimVarAccessor:
             # the shared deadline, even when far more than that remains.
             this_read = min(remaining, per_item_timeout)
             try:
-                results[key] = {"value": self.read(name, unit, index, this_read),
+                results[key] = {"value": self.read(name, unit, index, this_read,
+                                                   object_id=object_id),
                                 "unit": resolved}
             except SimVarTimeoutError as e:
                 # A read that got less than a full per-item share was

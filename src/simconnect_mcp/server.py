@@ -77,6 +77,7 @@ from simconnect_mcp.tools.pmdg import (  # noqa: E402
     send_pmdg_event,
 )
 from simconnect_mcp.tools.simvars import (  # noqa: E402
+    get_object_simvars,
     get_simvar,
     get_simvar_bulk,
     list_simvar_categories,
@@ -125,6 +126,8 @@ _register(get_simvar, "msfs_get_simvar", "Read SimVar", read_only=True, idempote
 _register(set_simvar, "msfs_set_simvar", "Write SimVar", read_only=False, idempotent=True)
 _register(get_simvar_bulk, "msfs_get_simvars_bulk", "Read Multiple SimVars",
           read_only=True, idempotent=True)
+_register(get_object_simvars, "msfs_get_object_simvars",
+          "Read SimVars From An Object", read_only=True, idempotent=True)
 _register(search_simvars, "msfs_search_simvars", "Search SimVars",
           read_only=True, idempotent=True)
 _register(list_simvar_categories, "msfs_list_simvar_categories", "List SimVar Categories",

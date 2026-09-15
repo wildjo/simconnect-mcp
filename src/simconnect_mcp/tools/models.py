@@ -153,6 +153,21 @@ class SimVarBulkResult(OkModel):
     )
 
 
+class SimVarObjectResult(SimVarBulkResult):
+    """A bulk read taken from a specific SimConnect object.
+
+    `object_id` is echoed back so a result can never be mistaken for the
+    user aircraft's. That matters more here than it looks: a variable the
+    sim does not maintain for AI objects can come back as a plausible zero
+    rather than an error, and the only thing distinguishing that from a
+    real reading is knowing which object was asked.
+    """
+
+    object_id: int = Field(
+        ..., description="The SimConnect object these variables were read from"
+    )
+
+
 class WatchSample(BaseModel):
     t: float = Field(..., description="Seconds since the watch started")
     value: float | str | None = None

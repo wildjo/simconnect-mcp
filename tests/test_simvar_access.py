@@ -448,7 +448,7 @@ def _spy_on_read(accessor):
     real_read = accessor.read
     seen: list[float] = []
 
-    def spy_read(name, unit=None, index=None, timeout=2.0):
+    def spy_read(name, unit=None, index=None, timeout=2.0, object_id=None):
         seen.append(timeout)
         return real_read(name, unit=unit, index=index, timeout=timeout)
 
@@ -534,7 +534,7 @@ def test_read_many_budget_scales_with_variable_count_up_to_the_cap(monkeypatch):
     seen_timeouts: list[float] = []
     cost = 0.02  # fake seconds "spent" per read -- no real waiting happens
 
-    def fake_read(name, unit=None, index=None, timeout=2.0):
+    def fake_read(name, unit=None, index=None, timeout=2.0, object_id=None):
         seen_timeouts.append(timeout)
         clock[0] += cost
         return 1.0
@@ -579,7 +579,7 @@ def test_read_many_caps_the_total_budget_regardless_of_variable_count(monkeypatc
     read_calls: list[str] = []
     real_read = accessor.read
 
-    def counting_read(name, unit=None, index=None, timeout=2.0):
+    def counting_read(name, unit=None, index=None, timeout=2.0, object_id=None):
         read_calls.append(name)
         return real_read(name, unit=unit, index=index, timeout=timeout)
 
@@ -618,7 +618,7 @@ def test_one_hung_variable_does_not_starve_the_rest_of_the_batch():
     real_read = accessor.read
     call_count = 0
 
-    def hang_first(name, unit=None, index=None, timeout=2.0):
+    def hang_first(name, unit=None, index=None, timeout=2.0, object_id=None):
         nonlocal call_count
         call_count += 1
         if call_count == 1:
@@ -654,7 +654,7 @@ def test_read_many_reports_a_timeout_for_entries_past_the_deadline_without_calli
     real_read = accessor.read
     read_calls = []
 
-    def spy_read(name, unit=None, index=None, timeout=2.0):
+    def spy_read(name, unit=None, index=None, timeout=2.0, object_id=None):
         read_calls.append(name)
         return real_read(name, unit=unit, index=index, timeout=timeout)
 

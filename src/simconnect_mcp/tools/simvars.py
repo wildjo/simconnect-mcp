@@ -34,6 +34,7 @@ from simconnect_mcp.tools.models import (
     CategoryList,
     SearchResult,
     SimVarBulkResult,
+    SimVarObjectResult,
     SimVarValue,
     SimVarWriteResult,
     ToolError,
@@ -340,6 +341,89 @@ async def get_simvar_bulk(
         ok_count=ok_count,
         error_count=error_count,
         variables=results,
+    )
+
+
+@handle_simconnect_errors
+@require_connection(needs_accessor=True)
+async def get_object_simvars(
+    object_id: Annotated[
+        int,
+        Field(description="SimConnect object ID to read from, as returned by "
+                          "msfs_create_ai_object. Not a title and not an index.",
+              ge=0),
+    ],
+    variables: Annotated[
+        list[dict],
+        Field(description="Variables to read. Each dict takes 'name' and optional "
+                          "'unit' and 'index'. Example: "
+                          '[{"name": "PLANE_ALTITUDE", "unit": "meters"}, '
+                          '{"name": "GROUND_ALTITUDE", "unit": "meters"}]. '
+                          f"At most {MAX_BULK_VARIABLES} entries per call."),
+    ],
+) -> SimVarObjectResult | ToolError:
+    """Read SimVars from a specific SimConnect object rather than the user aircraft.
+
+    Takes an `object_id` from msfs_create_ai_object and reads the same way
+    msfs_get_simvars_bulk does, against that object. Results are keyed by
+    'NAME' or 'NAME:index'; a failure on one variable does not abort the
+    others.
+
+    Two cautions that matter more than the usual ones.
+
+    **A value here is not proof the sim maintains that variable for this
+    object.** SimConnect answers a well-formed request for any object, and a
+    variable the sim does not compute for AI objects can come back as a
+    perfectly plausible 0.0 rather than an error. Before trusting a variable
+    on spawned objects, check it somewhere the answer is already known
+    independently. Do not infer from "it returned a number" that it returned
+    a measurement.
+
+    **A stale object_id is not an error either.** SimConnect will not tell
+    you the object was removed, or that a flight restart cleared every AI
+    object; the read simply times out or returns nothing useful. Treat an
+    id as valid only for the session and the flight that produced it.
+
+    Reading is deliberately one-way: there is no write counterpart, because
+    nothing needs to set variables on arbitrary objects and a stray write
+    against a wrong id is not something a caller could easily notice.
+    """
+    # Same reasoning as get_simvar_bulk: the cap is enforced here in the body
+    # rather than as a schema max_length, so real MCP callers get this
+    # ToolError instead of a generic framework validation failure.
+    if len(variables) > MAX_BULK_VARIABLES:
+        return ToolError(
+            error="TOO_MANY_VARIABLES",
+            message=(
+                f"Requested {len(variables)} variables; msfs_get_object_simvars accepts "
+                f"at most {MAX_BULK_VARIABLES} per call."
+            ),
+            suggestion=f"Split the request into batches of {MAX_BULK_VARIABLES} or fewer.",
+        )
+
+    manager = SimConnectManager()
+    caller_units: dict[str, str | None] = {}
+    requests = []
+    for var in variables:
+        name = var["name"]
+        unit = var.get("unit")
+        index = var.get("index")  # index 0 must survive
+        key = name if index is None else f"{name}:{index}"
+        caller_units[key] = unit
+        requests.append((name, unit, index))
+
+    results = await manager.run_sync(
+        lambda: manager.accessor.read_many(requests, object_id=object_id)
+    )
+
+    ok_count, error_count = diagnose_bulk_entries(results, caller_units)
+
+    return SimVarObjectResult(
+        count=len(results),
+        ok_count=ok_count,
+        error_count=error_count,
+        variables=results,
+        object_id=object_id,
     )
 
 
